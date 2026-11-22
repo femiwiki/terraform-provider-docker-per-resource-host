@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
 func TestResourceDockerHost(t *testing.T) {
@@ -93,5 +94,50 @@ func TestMakeContainerCreateClientWaitsForDockerHost(t *testing.T) {
 	}
 	if got := pings.Load(); got < 3 {
 		t.Errorf("pinged %d times, want a retry after the failures", got)
+	}
+}
+
+// Setting docker_host on a container that has none in state, or changing it,
+// is an in-place update: the address may change while the host stays the same.
+func TestResourceDockerHostChangeIsNotReplacement(t *testing.T) {
+	// A sparse state makes other computed attributes plan as replacements too;
+	// those come from a config without docker_host and must stay the same.
+	state := &terraform.InstanceState{
+		ID:         "abc",
+		Attributes: map[string]string{"id": "abc", "name": "http", "image": "sha256:0123"},
+	}
+	replaced := func(host string) map[string]bool {
+		raw := map[string]interface{}{"name": "http", "image": "sha256:0123"}
+		if host != "" {
+			raw["docker_host"] = host
+		}
+		diff, err := resourceDockerContainer().Diff(t.Context(), state, terraform.NewResourceConfigRaw(raw), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := map[string]bool{}
+		for k, a := range diff.Attributes {
+			if a.RequiresNew {
+				got[k] = true
+			}
+		}
+		if host != "" && diff.Attributes["docker_host"] == nil {
+			t.Fatalf("%s: docker_host does not change", host)
+		}
+		return got
+	}
+
+	state.Attributes["docker_host"] = ""
+	want := replaced("")
+	for _, host := range []string{"tcp://172.17.0.1:2375", "tcp://172.18.0.1:2376"} {
+		got := replaced(host)
+		if got["docker_host"] {
+			t.Errorf("%s: changing docker_host replaces the container", host)
+		}
+		delete(got, "docker_host")
+		if len(got) != len(want) {
+			t.Errorf("%s: replaced %v, want %v", host, got, want)
+		}
+		state.Attributes["docker_host"] = host
 	}
 }

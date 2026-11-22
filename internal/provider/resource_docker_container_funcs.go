@@ -27,6 +27,7 @@ import (
 	"github.com/docker/go-connections/nat"
 	"github.com/docker/go-units"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/retry"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 )
@@ -78,8 +79,31 @@ func uploadTarName(value string) string {
 	return value
 }
 
+// makeContainerCreateClient connects for a create. A container with its own
+// docker_host may follow a host created in the same apply, so its daemon is
+// retried until the create timeout instead of failing at once.
+func makeContainerCreateClient(ctx context.Context, d *schema.ResourceData, meta interface{}) (*client.Client, error) {
+	config := meta.(*ProviderConfig)
+	host := resourceDockerHost(d)
+	if host == "" {
+		return config.MakeClient(ctx, d)
+	}
+
+	var dockerClient *client.Client
+	err := retry.RetryContext(ctx, d.Timeout(schema.TimeoutCreate), func() *retry.RetryError {
+		var err error
+		dockerClient, err = config.MakeClient(ctx, d)
+		if err != nil {
+			log.Printf("[DEBUG] Waiting for the Docker daemon at %s: %s", host, err)
+			return retry.RetryableError(err)
+		}
+		return nil
+	})
+	return dockerClient, err
+}
+
 func resourceDockerContainerCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	client, err := meta.(*ProviderConfig).MakeClient(ctx, d)
+	client, err := makeContainerCreateClient(ctx, d, meta)
 	if err != nil {
 		return diag.FromErr(fmt.Errorf("failed to create Docker client: %w", err))
 	}

@@ -57,6 +57,7 @@ resource "docker_image" "ubuntu" {
 - `dns` (Set of String) DNS servers to use.
 - `dns_opts` (Set of String) DNS options used by the DNS provider(s), see `resolv.conf` documentation for valid list of options.
 - `dns_search` (Set of String) DNS search domains that are used when bare unqualified hostnames are used inside of the container.
+- `docker_host` (String) The Docker daemon this container runs on, in the same form as the provider's `host`. It replaces the provider's `host` for this container only, so one provider can manage containers on hosts known only at apply time. The provider's other connection settings still apply.
 - `domainname` (String) Domain name of the container.
 - `entrypoint` (List of String) The command to use as the Entrypoint for the container. The Entrypoint allows you to configure a container to run as an executable. For example, to run `/usr/bin/myprogram` when starting a container, set the entrypoint to be `"/usr/bin/myprogram"]`.
 - `env` (Set of String) Environment variables to set in the form of `KEY=VALUE`, e.g. `DEBUG=0`

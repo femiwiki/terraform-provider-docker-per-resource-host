@@ -153,6 +153,13 @@ func resourceDockerContainer() *schema.Resource {
 				Computed:    true,
 			},
 
+			"docker_host": {
+				Type:        schema.TypeString,
+				Description: "The Docker daemon this container runs on, in the same form as the provider's `host`. It replaces the provider's `host` for this container only, so one provider can manage containers on hosts known only at apply time. The provider's other connection settings still apply.",
+				Optional:    true,
+				ForceNew:    true,
+			},
+
 			"domainname": {
 				Type:        schema.TypeString,
 				Description: "Domain name of the container.",

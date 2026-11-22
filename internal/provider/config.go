@@ -118,6 +118,9 @@ func (c *ProviderConfig) MakeClient(ctx context.Context, d *schema.ResourceData)
 	var err error
 
 	config := *c.DefaultConfig
+	if host := resourceDockerHost(d); host != "" {
+		config.Host = host
+	}
 	configHash := config.Hash()
 	cached, found := c.clientCache.Load(configHash)
 
@@ -207,6 +210,17 @@ func (c *ProviderConfig) MakeClient(ctx context.Context, d *schema.ResourceData)
 	log.Printf("[INFO] New client with Hash:%d Host:%s", configHash, config.Host)
 
 	return dockerClient, nil
+}
+
+// resourceDockerHost returns a resource's own Docker host, which replaces the
+// provider's host for that resource. Resources without a docker_host
+// attribute, and calls without resource data, get an empty string.
+func resourceDockerHost(d *schema.ResourceData) string {
+	if d == nil {
+		return ""
+	}
+	host, _ := d.Get("docker_host").(string)
+	return host
 }
 
 // Data structure for holding data that we fetch from Docker.

@@ -1,0 +1,31 @@
+---
+# Built by .github/workflows/maintain.yml from a tag on the patches branch.
+# Named like the upstream provider, as OpenTofu's filesystem_mirror expects:
+# terraform-provider-docker_<version>_<os>_<arch>.zip
+version: 2
+project_name: terraform-provider-docker
+builds:
+  - env:
+      - CGO_ENABLED=0
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+    ldflags:
+      - "-s -w -X main.version={{ .Version }} -X main.commit={{ .Commit }}"
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    binary: "{{ .ProjectName }}_v{{ .Version }}"
+archives:
+  - formats: ["zip"]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_SHA256SUMS"
+  algorithm: sha256
+changelog:
+  disable: true
+release:
+  header: |
+    [{{ .Env.UPSTREAM }}](https://github.com/kreuzwerker/terraform-provider-docker/releases/tag/{{ .Env.UPSTREAM }}) of kreuzwerker/terraform-provider-docker plus the commits on [patches](https://github.com/femiwiki/terraform-provider-docker-per-resource-host/commits/{{ .Tag }}).

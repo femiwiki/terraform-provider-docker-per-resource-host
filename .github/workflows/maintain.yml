@@ -1,0 +1,62 @@
+---
+# Rebases the patches branch onto each upstream release and publishes a
+# release whenever the branch changes. See .github/scripts/maintain.mts.
+name: Maintain
+
+on:
+  schedule:
+    - cron: "41 0 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: maintain
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  maintain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      # Committer of the rebased commits; their authors stay as they are
+      GIT_COMMITTER_NAME: github-actions[bot]
+      GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: patches
+          path: patches
+          fetch-depth: 0
+          # zizmor: ignore[artipacked] pushes the rebased branch and the tag; nothing is uploaded
+          persist-credentials: true
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: patches/go.mod
+          # A release is built here, so nothing is restored from a cache
+          cache: false
+
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: maintain
+        with:
+          script: |
+            const { maintain } = await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/maintain.mts`)
+            await maintain({ github, core, exec })
+
+      - if: steps.maintain.outputs.tag
+        # The pin upstream's release workflow uses
+        uses: goreleaser/goreleaser-action@1a80836c5c9d9e5755a25cb59ec6f45a3b5f41a8
+        with:
+          version: v2.20.1
+          workdir: patches
+          args: release --clean --config ../.goreleaser.yaml
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          UPSTREAM: ${{ steps.maintain.outputs.upstream }}
